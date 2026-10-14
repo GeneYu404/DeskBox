@@ -708,10 +708,12 @@ public sealed partial class ContentWidgetWindow : WidgetWindowBase, IDesktopWidg
     {
         // User-set background wins over the Glance surface's own background
         // image (per-widget customization rule).
+#if !DESKBOX_FILE_ONLY
         if (CurrentContent?.View is DeskBox.Controls.WidgetContents.GlanceWidgetContent glance)
         {
             glance.SetShellCustomBackgroundActive(active);
         }
+#endif
     }
 
     // ── IDesktopWidgetWindow implementation ────────────────────

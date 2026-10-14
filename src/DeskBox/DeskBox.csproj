@@ -35,6 +35,17 @@
     <EverythingSdkArchitecture Condition="'$(RuntimeIdentifier)' == 'win-arm64' or '$(Platform)' == 'ARM64'">ARM64</EverythingSdkArchitecture>
     <EverythingSdkArchitecture Condition="'$(EverythingSdkArchitecture)' == ''">x64</EverythingSdkArchitecture>
     <DefineConstants Condition="'$(DeskBoxDistribution)' == 'Store'">$(DefineConstants);DESKBOX_STORE</DefineConstants>
+    <!--
+      DESKBOX_FILE_ONLY prunes every non-file widget (weather, music, todo,
+      search, quick capture, glance) from the compile. The WidgetKind enum
+      members are deliberately retained: WidgetKindJsonConverter degrades an
+      unknown kind to WidgetKind.File, so keeping the names means existing
+      user settings stay readable instead of silently collapsing to file
+      widgets. Defaults to false so ordinary builds are unchanged; enable with
+      -p:DeskBoxFileOnly=true.
+    -->
+    <DeskBoxFileOnly Condition="'$(DeskBoxFileOnly)' == ''">false</DeskBoxFileOnly>
+    <DefineConstants Condition="'$(DeskBoxFileOnly)' == 'true'">$(DefineConstants);DESKBOX_FILE_ONLY</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>Assets\deskbox.ico</ApplicationIcon>
   </PropertyGroup>
@@ -76,6 +87,129 @@
   <ItemGroup Condition="'$(DeskBoxAotSmokeHarness)' != 'true'">
     <Compile Remove="**\*.Aot*Smoke.cs" />
     <Compile Remove="Services\Aot*Fixture.cs" />
+  </ItemGroup>
+
+  <!--
+    File-only compile: remove every non-file widget feature. Models, services,
+    view models, XAML content controls, helpers, and the bundled assets that
+    exist solely for the removed widgets. Shared infrastructure (WidgetManager,
+    SettingsService, App, layout/topology, shell drag-drop) stays intact.
+    Everything SDK ships only for the removed desktop search, so its content
+    items and architecture validation are gated off with the features.
+  -->
+  <ItemGroup Condition="'$(DeskBoxFileOnly)' == 'true'">
+    <!-- Feature view models (settings pages) -->
+    <Compile Remove="Features\Weather\**" />
+    <Compile Remove="Features\Music\**" />
+    <Compile Remove="Features\Todo\**" />
+    <Compile Remove="Features\Search\**" />
+    <Compile Remove="Features\FeatureWidgets\**" />
+
+    <!-- Services: per-widget implementation -->
+    <Compile Remove="Services\Weather*.cs" />
+    <Compile Remove="Services\MusicSessionService.cs" />
+    <Compile Remove="Services\MusicVolumeService.cs" />
+    <Compile Remove="Services\MusicWidgetContentProvider.cs" />
+    <Compile Remove="Services\Todo*.cs" />
+    <Compile Remove="Services\Glance*.cs" />
+    <Compile Remove="Services\Search*.cs" />
+    <Compile Remove="Services\EverythingSearchService.cs" />
+    <Compile Remove="Services\LegacySearchIndexCleanupService.cs" />
+    <Compile Remove="Services\CitySearchService.cs" />
+    <Compile Remove="Services\QuickCapture*.cs" />
+    <Compile Remove="Services\IQuickCaptureClipboardReader.cs" />
+    <Compile Remove="Services\SettingsSearchCatalog.cs" />
+    <Compile Remove="Services\SettingsSearchChannelPolicy.cs" />
+    <Compile Remove="Services\SettingsSearchMatcher.cs" />
+    <Compile Remove="Services\WeatherWidgetViewModeSettings.cs" />
+
+    <!-- Models -->
+    <Compile Remove="Models\Weather*.cs" />
+    <Compile Remove="Models\MsnWeatherResponse.cs" />
+    <Compile Remove="Models\MusicSettingsSlice.cs" />
+    <Compile Remove="Models\Todo*.cs" />
+    <Compile Remove="Models\Search*.cs" />
+    <Compile Remove="Models\QuickCapture*.cs" />
+    <Compile Remove="Models\GlanceWidgetData.cs" />
+
+    <!-- View models -->
+    <Compile Remove="ViewModels\Weather*.cs" />
+    <Compile Remove="ViewModels\Music*.cs" />
+    <Compile Remove="ViewModels\Todo*.cs" />
+    <Compile Remove="ViewModels\Search*.cs" />
+    <Compile Remove="ViewModels\Glance*.cs" />
+    <Compile Remove="ViewModels\QuickCapture*.cs" />
+
+    <!-- Widget content controls (XAML + code-behind + adapters) -->
+    <Compile Remove="Controls\WidgetContents\Weather*.xaml" />
+    <Compile Remove="Controls\WidgetContents\Weather*.xaml.cs" />
+    <Compile Remove="Controls\WidgetContents\MusicWidgetContent.xaml" />
+    <Compile Remove="Controls\WidgetContents\MusicWidgetContent.xaml.cs" />
+    <Compile Remove="Controls\WidgetContents\Todo*.xaml" />
+    <Compile Remove="Controls\WidgetContents\Todo*.xaml.cs" />
+    <Compile Remove="Controls\WidgetContents\Glance*.xaml" />
+    <Compile Remove="Controls\WidgetContents\Glance*.xaml.cs" />
+    <Compile Remove="Controls\WidgetContents\Search*.xaml" />
+    <Compile Remove="Controls\WidgetContents\Search*.xaml.cs" />
+    <Compile Remove="Controls\WidgetContents\QuickCapture*.xaml" />
+    <Compile Remove="Controls\WidgetContents\QuickCapture*.xaml.cs" />
+
+    <!-- Helpers -->
+    <Compile Remove="Helpers\WeatherCodeMapper.cs" />
+    <Compile Remove="Helpers\WindowsLocationHelper.cs" />
+    <Compile Remove="Helpers\MusicVolumeNativeBackend.cs" />
+    <Compile Remove="Helpers\QuickCaptureClipboardActivationHelper.cs" />
+
+    <!-- Everything SDK: desktop search only -->
+    <Content Remove="ThirdParty\Everything\**" />
+    <EmbeddedResource Remove="Assets\Cities\cities.json" />
+
+    <!-- Assets that only the removed widgets consume -->
+    <Content Remove="Assets\WeatherIcons\**" />
+    <Content Remove="Assets\WidgetTitleIcons\Weather*.svg" />
+    <Content Remove="Assets\WidgetTitleIcons\Glance*.svg" />
+    <Content Remove="Assets\WidgetTitleIcons\Music*.svg" />
+    <Content Remove="Assets\WidgetTitleIcons\Search*.svg" />
+    <Content Remove="Assets\WidgetTitleIcons\Todo*.svg" />
+    <Content Remove="Assets\WidgetTitleIcons\QuickCapture*.svg" />
+  </ItemGroup>
+
+  <!--
+    Everything SDK architecture validation only applies when the SDK is actually
+    packaged, which the file-only compile removes.
+  -->
+  <Target Name="ValidateEverythingSdkArchitecture" BeforeTargets="PrepareForBuild;Publish" Condition="'$(DesignTimeBuild)' != 'true' and '$(DeskBoxFileOnly)' != 'true'">
+    <Error
+      Condition="('$(Platform)' == 'x64' and '$(RuntimeIdentifier)' == 'win-arm64') or ('$(Platform)' == 'ARM64' and '$(RuntimeIdentifier)' == 'win-x64')"
+      Text="Everything SDK requires matching Platform and RuntimeIdentifier architectures." />
+    <Error
+      Condition="'$(EverythingSdkArchitecture)' != 'x64' and '$(EverythingSdkArchitecture)' != 'ARM64'"
+      Text="Everything SDK supports only x64 and ARM64 DeskBox builds." />
+  </Target>
+
+  <!--
+    Everything SDK content is gated off for the file-only compile; keep the
+    non-file-only behavior identical to the upstream project.
+  -->
+  <ItemGroup Condition="'$(DeskBoxFileOnly)' != 'true'">
+    <Content Include="ThirdParty\Everything\Everything64.dll" Condition="'$(EverythingSdkArchitecture)' == 'x64'">
+      <Link>EverythingSdk.dll</Link>
+      <TargetPath>EverythingSdk.dll</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="ThirdParty\Everything\EverythingARM64.dll" Condition="'$(EverythingSdkArchitecture)' == 'ARM64'">
+      <Link>EverythingSdk.dll</Link>
+      <TargetPath>EverythingSdk.dll</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <None Update="ThirdParty\Everything\LICENSE.txt">
+      <TargetPath>ThirdParty\Everything\LICENSE.txt</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <EmbeddedResource Include="Assets\Cities\cities.json" />
   </ItemGroup>
 
   <!--
@@ -196,23 +330,6 @@
   <ItemGroup>
     <None Remove="ThirdParty\Everything\Everything64.dll" />
     <None Remove="ThirdParty\Everything\EverythingARM64.dll" />
-    <Content Include="ThirdParty\Everything\Everything64.dll" Condition="'$(EverythingSdkArchitecture)' == 'x64'">
-      <Link>EverythingSdk.dll</Link>
-      <TargetPath>EverythingSdk.dll</TargetPath>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
-    <Content Include="ThirdParty\Everything\EverythingARM64.dll" Condition="'$(EverythingSdkArchitecture)' == 'ARM64'">
-      <Link>EverythingSdk.dll</Link>
-      <TargetPath>EverythingSdk.dll</TargetPath>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
-    <None Update="ThirdParty\Everything\LICENSE.txt">
-      <TargetPath>ThirdParty\Everything\LICENSE.txt</TargetPath>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </None>
   </ItemGroup>
 
   <Target Name="ValidateEverythingSdkArchitecture" BeforeTargets="PrepareForBuild;Publish" Condition="'$(DesignTimeBuild)' != 'true'">
@@ -235,7 +352,7 @@
     <Content Remove="Assets\Support\*.png" />
     <!-- city data is consumed exclusively through the embedded resource in
          CitySearchService; the SDK wildcard Content copy is dead weight in
-         every package -->
+         every package. The file-only compile drops the resource entirely. -->
     <Content Remove="Assets\Cities\cities.json" />
     <Content Include="Assets\deskbox.ico">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
@@ -278,7 +395,6 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </Content>
-    <EmbeddedResource Include="Assets\Cities\cities.json" />
     <EmbeddedResource Include="Strings\zh-CN.json" />
     <EmbeddedResource Include="Strings\zh-TW.json" />
     <EmbeddedResource Include="Strings\en-US.json" />

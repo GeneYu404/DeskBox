@@ -106,5 +106,8 @@ docs/wechat/*.webp
 store-listing/
 .zcode/
 
+# Local build-intermediate relocation experiment (not part of the project)
+/build-cache/
+
 # Agent scratch workspace (review/fix iteration artifacts)
 .scratch/
